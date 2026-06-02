@@ -142,8 +142,8 @@ services:
   #
   # Credentials match what is configured in
   # case-management-service application.properties:
-  #   spring.datasource.username=sentinel
-  #   spring.datasource.password=sentinel123
+  #   spring.datasource.username=
+  #   spring.datasource.password=
   #   spring.datasource.url=...sentinel_cases
   # ===================================================
   postgresql:
@@ -153,8 +153,8 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_DB: sentinel_cases
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Password1a@
+      POSTGRES_USER: 
+      POSTGRES_PASSWORD: 
     volumes:
       # Named volume persists data between restarts.
       # Without this, all your data is lost every time
@@ -237,12 +237,12 @@ services:
   # ===================================================
   mongodb:
     image: mongo:7
-    container_name: sentinel-mongodb
+    container_name: 
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: sentinel
-      MONGO_INITDB_ROOT_PASSWORD: sentinel123
+      MONGO_INITDB_ROOT_USERNAME: 
+      MONGO_INITDB_ROOT_PASSWORD: 
       MONGO_INITDB_DATABASE: sentinel_transactions
     volumes:
       - mongo-data:/data/db
