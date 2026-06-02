@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        PARENT
+        This is how this child module connects to the parent.
+        Instead of pointing to spring-boot-starter-parent directly,
+        it points to OUR parent pom — which itself points to
+        Spring Boot. This is how shared config is inherited.
+    -->
+    <parent>
+        <groupId>com.sentinel</groupId>
+        <artifactId>sentinel-fraud-detection</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ingestion-service</artifactId>
+    <name>ingestion-service</name>
+    <description>
+        Receives incoming transactions via REST API,
+        validates them, and publishes to Kafka for processing
+    </description>
+
+    <!--
+        NO groupId or version needed here.
+        Both are inherited from the parent pom above.
+        This is one of the key benefits of multi-module —
+        no repetition of version numbers across services.
+    -->
+
+    <dependencies>
+
+        <!--
+            Spring Web
+            Enables REST endpoints — this service exposes
+            a POST /api/v1/transactions endpoint that banks
+            and fintechs call to submit transactions.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+            Kafka
+            Publishes validated transactions to the
+            transactions.raw Kafka topic for downstream
+            services to consume.
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!--
+            Actuator
+            Exposes /actuator/health endpoint.
+            Kubernetes uses this to check if the pod
+            is alive and ready to receive traffic.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Validation
+            Validates incoming transaction payloads.
+            Ensures required fields are present and
+            values are within acceptable ranges before
+            any processing happens.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--
+            Swagger / OpenAPI
+            Generates live API documentation at
+            /swagger-ui/index.html
+            External fintechs use this to understand
+            how to integrate with Sentinel.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
+        <!--
+            Kafka Test
+            Provides embedded Kafka for unit tests —
+            lets you test Kafka producers without needing
+            a real Kafka instance running.
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+</project>

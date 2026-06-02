@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Points to OUR parent — not Spring Boot directly.
+        Spring Cloud Gateway version is managed in the
+        parent pom dependencyManagement section.
+    -->
+    <parent>
+        <groupId>com.sentinel</groupId>
+        <artifactId>sentinel-fraud-detection</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>api-gateway</artifactId>
+    <name>api-gateway</name>
+    <description>
+        Single entry point for all Sentinel API traffic.
+        Handles routing, JWT authentication, and rate limiting.
+    </description>
+
+    <dependencies>
+
+        <!--
+            Spring Cloud Gateway
+            This IS the gateway — it intercepts every incoming
+            request, validates the JWT token, applies rate
+            limiting, then routes to the correct microservice.
+            Uses reactive WebFlux under the hood — do NOT
+            add spring-boot-starter-web here, they conflict.
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+
+        <!--
+            Actuator
+            Exposes /actuator/health for Kubernetes
+            liveness and readiness probes.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+    </dependencies>
+
+</project>
