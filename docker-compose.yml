@@ -1,0 +1,289 @@
+# =====================================================
+# SENTINEL FRAUD DETECTION — LOCAL INFRASTRUCTURE
+# =====================================================
+# This file starts all infrastructure dependencies
+# that Sentinel's microservices connect to.
+#
+# Usage:
+#   Start:   docker compose up -d
+#   Stop:    docker compose down
+#   Logs:    docker compose logs -f
+#   Status:  docker compose ps
+#
+# Kafka runs in KRaft mode — no Zookeeper needed.
+# KRaft is the modern Kafka coordination protocol
+# where Kafka manages itself without an external
+# coordinator. This is the production standard
+# for all new Kafka deployments.
+# =====================================================
+
+services:
+
+  # ===================================================
+  # KAFKA (KRaft mode)
+  # ===================================================
+  # The message broker at the heart of Sentinel.
+  # All 6 microservices communicate through Kafka
+  # topics instead of calling each other directly.
+  #
+  # KRaft mode — no Zookeeper required.
+  # Kafka acts as its own metadata manager using
+  # the Raft consensus algorithm internally.
+  #
+  # Two listener addresses are configured:
+  #
+  # PLAINTEXT://kafka:29092
+  #   Used by other Docker containers to reach Kafka.
+  #   When services run inside Kubernetes pods they
+  #   use this address.
+  #
+  # PLAINTEXT_HOST://localhost:9092
+  #   Used by services running on your host machine.
+  #   When you run Spring Boot from IntelliJ it uses
+  #   localhost:9092 — which is why we set
+  #   bootstrap-servers=localhost:9092 in all
+  #   application.properties files.
+  # ===================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: sentinel-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      # KRaft mode settings
+      # KAFKA_NODE_ID uniquely identifies this broker
+      # in the cluster
+      KAFKA_NODE_ID: 1
+
+      # PROCESS_ROLES tells Kafka this node acts as
+      # both a broker (handles messages) and a
+      # controller (manages cluster metadata).
+      # In production you would separate these roles
+      # across multiple nodes.
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # The controller quorum — who participates in
+      # leader election. Format: nodeId@host:port
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Three listeners:
+      # PLAINTEXT     — internal Docker communication
+      # PLAINTEXT_HOST — external host machine access
+      # CONTROLLER    — internal KRaft coordination
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Replication factor of 1 because we have a
+      # single broker locally. In production this
+      # would be 3 for high availability.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+
+      # Auto create topics when a producer or consumer
+      # references them for the first time.
+      # Our 4 topics will be created automatically:
+      # transactions.raw, fraud.scored,
+      # fraud.alerts, model.feedback
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # Required for KRaft mode — a unique cluster ID
+      # Generated once and stays constant.
+      # This tells Kafka it has already been formatted
+      # and does not need to initialise storage again.
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ===================================================
+  # KAFKA UI
+  # ===================================================
+  # A web dashboard for viewing Kafka topics,
+  # messages, and consumer groups.
+  #
+  # Access at: http://localhost:8090
+  #
+  # This is extremely useful for debugging — you can
+  # watch messages flowing through your topics in
+  # real time as transactions are processed.
+  # You can see exactly what each service published
+  # and consumed without writing any extra code.
+  # ===================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: sentinel-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: sentinel-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - sentinel-network
+
+  # ===================================================
+  # POSTGRESQL
+  # ===================================================
+  # Relational database used by case-management-service
+  # to store fraud cases, analyst decisions, and
+  # audit logs.
+  #
+  # Why PostgreSQL and not MySQL?
+  # PostgreSQL has better support for JSON columns
+  # which we use to store flexible transaction metadata
+  # on fraud cases. It also has better concurrency
+  # handling for fraud case management workloads.
+  #
+  # Credentials match case-management-service
+  # application.properties:
+  #   spring.datasource.username=sentinel
+  #   spring.datasource.password=sentinel123
+  #   spring.datasource.url=...sentinel_cases
+  # ===================================================
+  postgresql:
+    image: postgres:15-alpine
+    container_name: sentinel-postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: sentinel_cases
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel123
+    volumes:
+      # Named volume persists data between restarts.
+      # Without this, all your data is lost every time
+      # you run docker compose down.
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel_cases"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================================================
+  # REDIS
+  # ===================================================
+  # In-memory data store used by rules-engine-service
+  # for velocity checks.
+  #
+  # Velocity check example:
+  #   "Has this account made more than 5 transactions
+  #    in the last 60 seconds?"
+  #
+  # Redis is perfect for this because:
+  # 1. Stores data in memory — extremely fast
+  # 2. Supports TTL on keys — a counter automatically
+  #    expires after 60 seconds without cleanup code
+  # 3. Atomic increment operations — thread-safe
+  #    counting across multiple service instances
+  #
+  # Redis responds in under 1ms vs PostgreSQL which
+  # would take 5-20ms for the same query.
+  # ===================================================
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================================================
+  # MONGODB
+  # ===================================================
+  # Document database for raw transaction history.
+  #
+  # Why MongoDB for transactions and PostgreSQL for
+  # cases? — Polyglot persistence principle:
+  #
+  # MongoDB (transactions):
+  #   Transactions come in many shapes — card payments,
+  #   bank transfers, mobile money, lending repayments.
+  #   Each has different fields. MongoDB's flexible
+  #   document model handles this without schema
+  #   migrations every time a new transaction type
+  #   is added.
+  #
+  # PostgreSQL (cases):
+  #   Fraud cases have fixed, predictable structure —
+  #   case ID, status, analyst, resolution. Relational
+  #   data with foreign keys. PostgreSQL is the right
+  #   tool here.
+  #
+  # Using the right database for each job rather than
+  # forcing one database to do everything is called
+  # polyglot persistence — a key microservices pattern.
+  # ===================================================
+  mongodb:
+    image: mongo:7
+    container_name: sentinel-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: postgres
+      MONGO_INITDB_ROOT_PASSWORD: Password1a@
+      MONGO_INITDB_DATABASE: sentinel_transactions
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - sentinel-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# =====================================================
+# VOLUMES
+# =====================================================
+# Named volumes persist data between docker compose
+# down and docker compose up cycles.
+# Without these, all database data is lost every
+# time you restart the containers.
+# =====================================================
+volumes:
+  kafka-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  mongo-data:
+    driver: local
+
+# =====================================================
+# NETWORKS
+# =====================================================
+# All containers share this network so they can
+# reach each other by container name instead of
+# IP addresses that change on every restart.
+# =====================================================
+networks:
+  sentinel-network:
+    driver: bridge
