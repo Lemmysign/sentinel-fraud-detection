@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        PARENT — Spring Boot
+        All 6 child services inherit Spring Boot's dependency
+        management from here. No child needs to declare
+        Spring Boot version individually.
+    -->
+    <!--
+        Spring Boot 3.5.6
+        Using 3.5.6 instead of 3.5.14 because 3.5.14 has
+        dependencies (Hibernate 6.6.49, Spring Data 3.5.11)
+        that were not yet published to Maven Central at time
+        of development. 3.5.6 is the latest fully stable
+        patch release with all dependencies available.
+    -->
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <!--
+        PROJECT IDENTITY
+        packaging = pom means this module contains no runnable
+        code. It only organises and manages the child modules.
+        This is what makes it a "parent" in Maven terms.
+    -->
+    <groupId>com.sentinel</groupId>
+    <artifactId>sentinel-fraud-detection</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>sentinel-fraud-detection</name>
+    <description>Sentinel Fraud Detection Platform</description>
+
+    <!--
+        MODULES
+        Tells Maven which child projects belong to this parent.
+        Running "mvn clean install" at this level builds ALL
+        six services in the order listed here.
+        These folders don't exist yet — we create them next.
+    -->
+    <modules>
+        <module>api-gateway</module>
+        <module>ingestion-service</module>
+        <module>rules-engine-service</module>
+        <module>scoring-service</module>
+        <module>case-management-service</module>
+        <module>feedback-service</module>
+    </modules>
+
+    <!--
+        SHARED PROPERTIES
+        Defined once here, inherited by all child modules.
+        No child needs to repeat Java version or encoding.
+    -->
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-cloud.version>2023.0.5</spring-cloud.version>
+    </properties>
+
+    <!--
+        DEPENDENCY MANAGEMENT
+        This does NOT add dependencies to child modules.
+        It only defines versions centrally so children
+        never need to specify a version number — preventing
+        version conflicts across all 6 services.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
+        SHARED DEPENDENCIES
+        These ARE automatically added to every child module.
+        Every service needs Lombok and testing — so we
+        declare them once here instead of repeating them
+        in all 6 child pom.xml files.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!--
+        BUILD PLUGINS
+        Spring Boot Maven plugin defined once here.
+        All child services inherit this and can produce
+        executable JARs without repeating plugin config.
+        Lombok is excluded from the final JAR — it is only
+        needed at compile time, not at runtime.
+    -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
