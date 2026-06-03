@@ -163,8 +163,8 @@ services:
       - "5433:5432"
     environment:
       POSTGRES_DB: sentinel_cases
-      POSTGRES_USER: 
-      POSTGRES_PASSWORD: 
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel123
     volumes:
       # Named volume persists data between restarts.
       # Without this, all your data is lost every time
@@ -242,12 +242,12 @@ services:
   # ===================================================
   mongodb:
     image: mongo:7
-    container_name: 
+    container_name: sentinel-mongodb
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: 
-      MONGO_INITDB_ROOT_PASSWORD: 
+      MONGO_INITDB_ROOT_USERNAME: sentinel
+      MONGO_INITDB_ROOT_PASSWORD: sentinel123
       MONGO_INITDB_DATABASE: sentinel_transactions
     volumes:
       - mongo-data:/data/db
