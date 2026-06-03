@@ -53,6 +53,23 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+
+        <!--
+sentinel-commons
+Provides shared Kafka event contracts and enums.
+Ensures all services use identical event classes
+— preventing serialization mismatches on Kafka.
+-->
+        <dependency>
+            <groupId>com.sentinel</groupId>
+            <artifactId>sentinel-commons</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+
+
+
+
+
         <!--
             Kafka Test
             Embedded Kafka for unit testing rule evaluation
