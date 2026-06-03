@@ -49,6 +49,7 @@
         These folders don't exist yet — we create them next.
     -->
     <modules>
+        <module>sentinel-commons</module>
         <module>api-gateway</module>
         <module>ingestion-service</module>
         <module>rules-engine-service</module>
