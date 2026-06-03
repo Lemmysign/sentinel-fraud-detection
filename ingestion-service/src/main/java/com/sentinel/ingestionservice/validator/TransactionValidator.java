@@ -98,16 +98,18 @@ public class TransactionValidator {
      * currencies. Expand this list as needed.
      */
     private void validateCurrency(TransactionRequest request) {
+        String currency = request.getCurrency().toUpperCase();  // normalize here
+
         java.util.Set<String> supportedCurrencies = java.util.Set.of(
                 "NGN", "USD", "GBP", "EUR", "KES",
                 "GHS", "ZAR", "UGX", "TZS", "XOF"
         );
 
-        if (!supportedCurrencies.contains(request.getCurrency())) {
+        if (!supportedCurrencies.contains(currency)) {
             throw new TransactionException(
                     String.format(
                             "Currency %s is not supported. Supported: %s",
-                            request.getCurrency(),
+                            currency,
                             supportedCurrencies
                     ),
                     "UNSUPPORTED_CURRENCY"
@@ -115,21 +117,18 @@ public class TransactionValidator {
         }
     }
 
-    /**
-     * Validates the transaction type is one we handle.
-     * This complements the @Pattern annotation on the DTO
-     * and provides a cleaner error message.
-     */
     private void validateTransactionType(TransactionRequest request) {
+        String transactionType = request.getTransactionType().toUpperCase();  // normalize here
+
         java.util.Set<String> validTypes = java.util.Set.of(
                 "TRANSFER", "PAYMENT", "WITHDRAWAL", "DEPOSIT"
         );
 
-        if (!validTypes.contains(request.getTransactionType())) {
+        if (!validTypes.contains(transactionType)) {
             throw new TransactionException(
                     String.format(
                             "Transaction type %s is not valid",
-                            request.getTransactionType()
+                            transactionType
                     ),
                     "INVALID_TRANSACTION_TYPE"
             );

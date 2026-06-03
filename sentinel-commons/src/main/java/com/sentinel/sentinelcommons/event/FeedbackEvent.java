@@ -10,22 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * Kafka event published by case-management-service
- * to the model.feedback topic when an analyst makes
- * a decision on a fraud case.
- *
- * Consumed by:
- * - feedback-service (closes the learning loop)
- *
- * This event is the foundation of continuous model
- * improvement. Every analyst decision teaches the
- * system what real fraud looks like vs false positives.
- *
- * In a mature system this feeds a retraining pipeline.
- * In Sentinel it is logged and stored for future
- * model improvement.
- */
+
 @Data
 @Builder
 @NoArgsConstructor

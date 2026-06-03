@@ -3,7 +3,6 @@ package com.sentinel.ingestionservice.dto;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,18 +15,9 @@ import java.math.BigDecimal;
  * Inbound DTO — what an external system (bank, fintech,
  * lender) sends to Sentinel when submitting a transaction
  * for fraud assessment.
- *
- * Validation annotations enforce data quality at the
- * HTTP boundary before any business logic runs.
- * Bad data is rejected immediately with a clear error
- * message — it never reaches the service layer.
- *
- * Why BigDecimal for amount?
- * Financial calculations require exact decimal precision.
- * double and float use binary floating point which cannot
- * represent many decimal values exactly — 0.1 + 0.2 = 0.30000000000000004.
- * BigDecimal guarantees exact representation.
- */
+**/
+
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -60,28 +50,24 @@ public class TransactionRequest {
     private BigDecimal amount;
 
     /**
-     * ISO 4217 currency code — exactly 3 uppercase letters.
-     * Examples: NGN, USD, GBP, EUR, KES
-     * Regex enforces the standard format.
+     * ISO 4217 currency code.
+     * Case-insensitive — normalized to uppercase in mapper.
+     * Examples: ngn, NGN, Ngn — all accepted.
+     * Supported currencies validated in TransactionValidator.
      */
     @NotBlank(message = "Currency is required")
-    @Pattern(
-            regexp = "^[A-Z]{3}$",
-            message = "Currency must be a valid 3-letter ISO 4217 code (e.g. NGN, USD)"
-    )
+    @Size(max = 3, message = "Currency code must not exceed 3 characters")
     private String currency;
 
     /**
      * Type of transaction.
+     * Case-insensitive — normalized to uppercase in mapper.
      * Allowed values: TRANSFER, PAYMENT, WITHDRAWAL, DEPOSIT
-     * Different types carry different fraud risk profiles —
-     * a WITHDRAWAL at 2am is riskier than a PAYMENT at noon.
+     * (any casing accepted — payment, Payment, PAYMENT all work)
+     * Validated in TransactionValidator after normalization.
      */
     @NotBlank(message = "Transaction type is required")
-    @Pattern(
-            regexp = "^(TRANSFER|PAYMENT|WITHDRAWAL|DEPOSIT)$",
-            message = "Transaction type must be TRANSFER, PAYMENT, WITHDRAWAL, or DEPOSIT"
-    )
+    @Size(max = 20, message = "Transaction type must not exceed 20 characters")
     private String transactionType;
 
     /**
