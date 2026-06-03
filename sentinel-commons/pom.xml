@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Points to our parent — inherits Java version,
+        Lombok, and shared build config.
+    -->
+    <parent>
+        <groupId>com.sentinel</groupId>
+        <artifactId>sentinel-fraud-detection</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>sentinel-commons</artifactId>
+    <name>sentinel-commons</name>
+    <description>
+        Shared library for Sentinel microservices.
+        Contains Kafka event contracts and enums used
+        across multiple services. No Spring Boot runtime
+        — this is a plain Java library.
+    </description>
+
+    <!--
+        packaging = jar (default)
+        This module produces a JAR that other services
+        import as a dependency. It has no main class
+        and cannot be run standalone.
+    -->
+
+    <dependencies>
+
+        <!--
+            Jackson
+            Events are serialized to JSON when published
+            to Kafka and deserialized back to Java objects
+            when consumed. Jackson handles this.
+            @JsonFormat and @JsonProperty annotations
+            live on the event classes.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!--
+            Jackson JSR310
+            Supports Java 8+ date/time types like
+            LocalDateTime in JSON serialization.
+            Without this, LocalDateTime serializes
+            as an array [2024,1,15,10,30] instead
+            of "2024-01-15T10:30:00"
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <!--
+        No build plugin needed.
+        The Spring Boot Maven plugin builds executable
+        JARs with an embedded main class. This module
+        has no main class — it is a library JAR.
+        Removing the plugin prevents build errors.
+    -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
