@@ -10,86 +10,97 @@
 #   Logs:    docker compose logs -f
 #   Status:  docker compose ps
 #
-# All services run on a shared network called
-# sentinel-network so they can find each other
-# by container name (e.g. kafka:29092)
+# Kafka runs in KRaft mode — no Zookeeper needed.
+# KRaft is the modern Kafka coordination protocol
+# where Kafka manages itself without an external
+# coordinator. This is the production standard
+# for all new Kafka deployments.
 # =====================================================
 
 services:
 
   # ===================================================
-  # ZOOKEEPER
-  # ===================================================
-  # Kafka's coordination service. Manages the Kafka
-  # broker, tracks which consumers are connected, and
-  # handles leader election for Kafka partitions.
-  #
-  # Think of it as Kafka's manager — Kafka reports to
-  # Zookeeper and cannot run without it.
-  #
-  # Note: Newer Kafka versions (3.x+) can run without
-  # Zookeeper using KRaft mode, but we use the classic
-  # setup here as it is more widely documented and
-  # easier to understand when learning.
-  # ===================================================
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    container_name: sentinel-zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      # The port Zookeeper listens on for client
-      # connections from Kafka
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - sentinel-network
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ===================================================
-  # KAFKA
+  # KAFKA (KRaft mode)
   # ===================================================
   # The message broker at the heart of Sentinel.
   # All 6 microservices communicate through Kafka
   # topics instead of calling each other directly.
   #
+  # KRaft mode — no Zookeeper required.
+  # Kafka acts as its own metadata manager using
+  # the Raft consensus algorithm internally.
+  #
   # Two listener addresses are configured:
   #
   # PLAINTEXT://kafka:29092
   #   Used by other Docker containers to reach Kafka.
-  #   When your Spring Boot services run inside Docker
-  #   they use this address.
+  #   When services run inside Kubernetes pods they
+  #   use this address.
   #
   # PLAINTEXT_HOST://localhost:9092
-  #   Used by services running on your host machine
-  #   (outside Docker). When you run Spring Boot from
-  #   IntelliJ, it uses localhost:9092 — which is why
-  #   we set bootstrap-servers=localhost:9092 in all
+  #   Used by services running on your host machine.
+  #   When you run Spring Boot from IntelliJ it uses
+  #   localhost:9092 — which is why we set
+  #   bootstrap-servers=localhost:9092 in all
   #   application.properties files.
   # ===================================================
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: sentinel-kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      # KRaft mode settings
+      # KAFKA_NODE_ID uniquely identifies this broker
+      # in the cluster
+      KAFKA_NODE_ID: 1
+
+      # PROCESS_ROLES tells Kafka this node acts as
+      # both a broker (handles messages) and a
+      # controller (manages cluster metadata).
+      # In production you would separate these roles
+      # across multiple nodes.
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # The controller quorum — who participates in
+      # leader election. Format: nodeId@host:port
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Three listeners:
+      # PLAINTEXT     — internal Docker communication
+      # PLAINTEXT_HOST — external host machine access
+      # CONTROLLER    — internal KRaft coordination
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Replication factor of 1 because we have a
+      # single broker locally. In production this
+      # would be 3 for high availability.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+
       # Auto create topics when a producer or consumer
-      # references them for the first time
+      # references them for the first time.
+      # Our 4 topics will be created automatically:
+      # transactions.raw, fraud.scored,
+      # fraud.alerts, model.feedback
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # Required for KRaft mode — a unique cluster ID
+      # Generated once and stays constant.
+      # This tells Kafka it has already been formatted
+      # and does not need to initialise storage again.
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     networks:
       - sentinel-network
     healthcheck:
@@ -137,11 +148,10 @@ services:
   # PostgreSQL has better support for JSON columns
   # which we use to store flexible transaction metadata
   # on fraud cases. It also has better concurrency
-  # handling for the kind of read/write patterns
-  # fraud case management requires.
+  # handling for fraud case management workloads.
   #
-  # Credentials match what is configured in
-  # case-management-service application.properties:
+  # Credentials match case-management-service
+  # application.properties:
   #   spring.datasource.username=sentinel
   #   spring.datasource.password=sentinel123
   #   spring.datasource.url=...sentinel_cases
@@ -150,11 +160,11 @@ services:
     image: postgres:15-alpine
     container_name: sentinel-postgresql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: sentinel_cases
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Password1a@
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel123
     volumes:
       # Named volume persists data between restarts.
       # Without this, all your data is lost every time
@@ -175,21 +185,18 @@ services:
   # for velocity checks.
   #
   # Velocity check example:
-  #   "Has this account ID made more than 5 transactions
+  #   "Has this account made more than 5 transactions
   #    in the last 60 seconds?"
   #
   # Redis is perfect for this because:
-  # 1. It stores data in memory — extremely fast
-  # 2. It supports TTL (time-to-live) on keys — a
-  #    counter automatically expires after 60 seconds
-  #    without any cleanup code needed
-  # 3. It supports atomic increment operations —
-  #    thread-safe counting across multiple service
-  #    instances
+  # 1. Stores data in memory — extremely fast
+  # 2. Supports TTL on keys — a counter automatically
+  #    expires after 60 seconds without cleanup code
+  # 3. Atomic increment operations — thread-safe
+  #    counting across multiple service instances
   #
-  # A PostgreSQL query would be far too slow for this
-  # check — it needs to complete in under 5ms.
-  # Redis responds in under 1ms.
+  # Redis responds in under 1ms vs PostgreSQL which
+  # would take 5-20ms for the same query.
   # ===================================================
   redis:
     image: redis:7-alpine
@@ -198,7 +205,6 @@ services:
       - "6379:6379"
     command: redis-server --appendonly yes
     volumes:
-      # Persists Redis data between restarts
       - redis-data:/data
     networks:
       - sentinel-network
@@ -211,29 +217,28 @@ services:
   # ===================================================
   # MONGODB
   # ===================================================
-  # Document database used to store the full raw
-  # transaction history.
+  # Document database for raw transaction history.
   #
   # Why MongoDB for transactions and PostgreSQL for
-  # cases? They solve different problems:
+  # cases? — Polyglot persistence principle:
   #
   # MongoDB (transactions):
   #   Transactions come in many shapes — card payments,
   #   bank transfers, mobile money, lending repayments.
   #   Each has different fields. MongoDB's flexible
-  #   document model handles this without needing
-  #   schema changes every time a new transaction
-  #   type is added.
+  #   document model handles this without schema
+  #   migrations every time a new transaction type
+  #   is added.
   #
   # PostgreSQL (cases):
-  #   Fraud cases have a fixed, predictable structure —
+  #   Fraud cases have fixed, predictable structure —
   #   case ID, status, analyst, resolution. Relational
-  #   data with foreign keys and structured queries.
-  #   PostgreSQL is the right tool here.
+  #   data with foreign keys. PostgreSQL is the right
+  #   tool here.
   #
-  # This is called polyglot persistence — using the
-  # right database for each specific job rather than
-  # forcing one database to do everything.
+  # Using the right database for each job rather than
+  # forcing one database to do everything is called
+  # polyglot persistence — a key microservices pattern.
   # ===================================================
   mongodb:
     image: mongo:7
@@ -259,10 +264,12 @@ services:
 # =====================================================
 # Named volumes persist data between docker compose
 # down and docker compose up cycles.
-# Without these, all database data is lost every time
-# you restart the containers.
+# Without these, all database data is lost every
+# time you restart the containers.
 # =====================================================
 volumes:
+  kafka-data:
+    driver: local
   postgres-data:
     driver: local
   redis-data:
@@ -274,10 +281,8 @@ volumes:
 # NETWORKS
 # =====================================================
 # All containers share this network so they can
-# reach each other by container name.
-# For example, Kafka reaches Zookeeper at:
-#   zookeeper:2181
-# instead of needing an IP address.
+# reach each other by container name instead of
+# IP addresses that change on every restart.
 # =====================================================
 networks:
   sentinel-network:
