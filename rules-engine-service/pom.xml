@@ -60,6 +60,14 @@ Provides shared Kafka event contracts and enums.
 Ensures all services use identical event classes
 — preventing serialization mismatches on Kafka.
 -->
+
+        <!--
+            sentinel-commons
+            Provides TransactionEvent (consumed from Kafka)
+            and FraudScoredEvent (published to Kafka),
+            plus RiskLevel and TransactionStatus enums.
+        -->
+
         <dependency>
             <groupId>com.sentinel</groupId>
             <artifactId>sentinel-commons</artifactId>
@@ -67,6 +75,19 @@ Ensures all services use identical event classes
         </dependency>
 
 
+
+        <!--
+            Spring Data Redis
+            Used for velocity checks — counting transactions
+            per account within a time window.
+            Redis INCR and EXPIRE operations are atomic,
+            making them thread-safe for concurrent requests
+            without any locking on our side.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
 
 
 
