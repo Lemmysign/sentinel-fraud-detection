@@ -1,0 +1,18 @@
+{
+  "properties": [
+    {
+      "name": "sentinel.kafka.topics.fraud-scored",
+      "type": "java.lang.String",
+      "description": "Description for sentinel.kafka.topics.fraud-scored."
+    },
+    {
+      "name": "sentinel.kafka.topics.transactions-raw",
+      "type": "java.lang.String",
+      "description": "Description for sentinel.kafka.topics.transactions-raw."
+    },
+    {
+      "name": "sentinel.rules.velocity.max-transactions",
+      "type": "java.lang.String",
+      "description": "Description for sentinel.rules.velocity.max-transactions."
+    }
+  ] }
