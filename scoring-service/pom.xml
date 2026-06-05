@@ -17,17 +17,16 @@
     <name>scoring-service</name>
     <description>
         AI-powered fraud risk scoring service.
-        Consumes transactions from Kafka, sends them to
-        Ollama via Spring AI, and returns a fraud score
-        between 0 and 100.
+        Consumes FraudScoredEvents from Kafka, sends them to
+        Groq (Llama3.3 70B) via Spring AI for deep analysis,
+        and publishes enriched FraudAlertEvents to fraud.alerts.
     </description>
 
     <!--
-        Spring AI BOM (Bill of Materials)
+        Spring AI BOM
         Spring AI has its own release train separate from
-        Spring Boot. We declare its version here so all
-        Spring AI dependencies below use the same version
-        without repeating it on each dependency.
+        Spring Boot. Declaring the BOM here means all Spring AI
+        dependencies use the same version automatically.
     -->
     <dependencyManagement>
         <dependencies>
@@ -41,13 +40,22 @@
         </dependencies>
     </dependencyManagement>
 
-
     <dependencies>
 
         <!--
+            Spring Boot Starter
+            Declared explicitly because Spring AI BOM
+            can override dependency resolution.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
             Kafka
-            Consumes transactions from transactions.raw topic.
-            Publishes scored results to fraud.scored topic.
+            Consumes FraudScoredEvents from fraud.scored topic.
+            Publishes FraudAlertEvents to fraud.alerts topic.
         -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
@@ -55,45 +63,29 @@
         </dependency>
 
         <!--
-            Spring AI — Ollama
-            This is what connects Spring Boot to Ollama.
-            Provides the ChatClient bean that sends transaction
-            data to the local LLM and receives a fraud
-            risk assessment back.
+            Spring AI — OpenAI starter
+            Used to connect to Groq's OpenAI-compatible API.
+            Groq runs Llama3.3 70B in the cloud — no local
+            model installation required.
+            base-url and api-key configured in
+            application.properties pointing to Groq.
         -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-ollama</artifactId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
-
         <!--
-  sentinel-commons
-  Provides shared Kafka event contracts and enums.
-  Ensures all services use identical event classes
-  — preventing serialization mismatches on Kafka.
--->
+            sentinel-commons
+            Provides FraudScoredEvent (consumed from Kafka),
+            FraudAlertEvent (published to Kafka),
+            RiskLevel and TransactionStatus enums.
+        -->
         <dependency>
             <groupId>com.sentinel</groupId>
             <artifactId>sentinel-commons</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
-
-
-        <!--
-    Spring Boot Starter
-    Provides SpringApplication, auto-configuration,
-    and the core Spring Boot runtime.
-    Needs to be declared explicitly because Spring AI BOM
-    overrides some dependency resolution.
--->
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-
-
 
         <!--
             Actuator
@@ -106,7 +98,7 @@
 
         <!--
             Validation
-            Validates transaction objects consumed from Kafka.
+            Validates event objects consumed from Kafka.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
