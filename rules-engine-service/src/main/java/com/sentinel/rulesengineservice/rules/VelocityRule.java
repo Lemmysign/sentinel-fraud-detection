@@ -1,5 +1,6 @@
 package com.sentinel.rulesengineservice.rules;
 
+import com.sentinel.sentinelcommons.RedisKeys;
 import com.sentinel.sentinelcommons.event.TransactionEvent;
 import com.sentinel.rulesengineservice.model.RuleResult;
 import lombok.RequiredArgsConstructor;
@@ -17,21 +18,23 @@ import java.time.Duration;
  * Pattern detected:
  * "This account made N transactions in X seconds"
  *
- * Why this matters in fraud:
- * Fraudsters who gain access to an account often make
- * multiple rapid transactions to drain it before the
- * owner notices. Legitimate users rarely make 5+
- * transactions in 60 seconds.
+ * Why this is a fraud signal:
+ * Fraudsters draining a compromised account make rapid
+ * consecutive transactions to move funds before the
+ * account owner notices and freezes the account.
+ * Legitimate users rarely exceed 5 transactions in
+ * 60 seconds.
  *
- * How Redis makes this thread-safe:
- * INCR is an atomic operation in Redis. Even if 100
- * concurrent requests arrive for the same account,
- * Redis processes them sequentially — no race conditions,
- * no double-counting, no locks needed on our side.
+ * Redis atomic operations guarantee thread safety:
+ * INCR is atomic — no race condition possible.
+ * 1000 concurrent requests for the same account
+ * each get a unique, correct count.
  *
- * The EXPIRE command sets a TTL on the counter key.
- * After 60 seconds the key disappears automatically —
- * the counter resets without any cleanup code.
+ * Sliding window implementation:
+ * EXPIRE is set only on the first transaction (count == 1).
+ * This creates a fixed 60-second window from the first
+ * transaction. After 60 seconds the key expires and
+ * the counter resets automatically — no cleanup needed.
  */
 @Slf4j
 @Component
@@ -40,66 +43,43 @@ public class VelocityRule {
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Value("${sentinel.rules.velocity.max-transactions}")
+    @Value("${sentinel.rules.velocity.max-transactions:5}")
     private int maxTransactions;
 
-    @Value("${sentinel.rules.velocity.window-seconds}")
+    @Value("${sentinel.rules.velocity.window-seconds:60}")
     private int windowSeconds;
 
-    @Value("${sentinel.rules.velocity.score-contribution}")
+    @Value("${sentinel.rules.velocity.score-contribution:35}")
     private int scoreContribution;
 
-    /**
-     * Redis key prefix for velocity counters.
-     * Full key format: velocity:{accountId}
-     * Example: velocity:ACC-001-LAGOS
-     */
-    private static final String VELOCITY_KEY_PREFIX = "velocity:";
-
-    /**
-     * Evaluates velocity for the given transaction.
-     *
-     * Algorithm:
-     * 1. Build Redis key for this account
-     * 2. Increment the counter atomically (INCR)
-     * 3. If this is the first transaction (count == 1),
-     *    set the expiry window (EXPIRE)
-     * 4. If count exceeds threshold, rule fires
-     *
-     * Why set EXPIRE only when count == 1?
-     * If we set EXPIRE on every increment, we keep
-     * resetting the window — the counter would never
-     * expire as long as transactions keep coming.
-     * Setting it only on the first increment means
-     * the window is fixed from the first transaction.
-     */
     public RuleResult evaluate(TransactionEvent transaction) {
-        String key = VELOCITY_KEY_PREFIX + transaction.getAccountId();
+        String key = RedisKeys.VELOCITY_PREFIX
+                + transaction.getAccountId();
 
-        // Atomic increment — returns new count
         Long count = redisTemplate.opsForValue().increment(key);
 
         if (count == null) {
-            log.warn("Redis returned null for INCR on key: {}", key);
+            log.warn("Redis INCR returned null for key: {}", key);
             return RuleResult.notFired("VELOCITY_CHECK");
         }
 
         // Set expiry only on first transaction in window
         if (count == 1) {
-            redisTemplate.expire(key, Duration.ofSeconds(windowSeconds));
+            redisTemplate.expire(key,
+                    Duration.ofSeconds(windowSeconds));
         }
 
-        log.debug("Velocity check — account: {}, count: {}/{} in {}s window",
-                transaction.getAccountId(), count,
-                maxTransactions, windowSeconds);
+        log.debug("Velocity — account: {}, count: {}/{} in {}s",
+                transaction.getAccountId(),
+                count, maxTransactions, windowSeconds);
 
         if (count > maxTransactions) {
             String explanation = String.format(
-                    "Account %s made %d transactions in %d seconds. " +
+                    "Account %s made %d transactions within %d seconds. " +
                             "Threshold: %d transactions per %d seconds.",
                     transaction.getAccountId(), count,
-                    windowSeconds, maxTransactions, windowSeconds
-            );
+                    windowSeconds, maxTransactions, windowSeconds);
+
             return RuleResult.fired("VELOCITY_CHECK",
                     scoreContribution, explanation);
         }

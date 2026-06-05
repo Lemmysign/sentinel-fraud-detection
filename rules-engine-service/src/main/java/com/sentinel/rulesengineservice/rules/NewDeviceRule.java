@@ -1,5 +1,6 @@
 package com.sentinel.rulesengineservice.rules;
 
+import com.sentinel.sentinelcommons.RedisKeys;
 import com.sentinel.sentinelcommons.event.TransactionEvent;
 import com.sentinel.rulesengineservice.model.RuleResult;
 import lombok.RequiredArgsConstructor;
@@ -9,28 +10,25 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * New device rule — detects when a transaction comes
+ * New device rule — detects transactions originating
  * from a device not previously seen for this account.
  *
  * Why this is a fraud signal:
- * When a fraudster gains account credentials, they
- * access the account from their own device — not the
- * legitimate owner's device. A new device on an
- * established account is a meaningful signal,
- * especially when combined with other rules.
+ * When credentials are stolen, the fraudster accesses
+ * the account from their own device — not the owner's.
+ * A transaction from an account's first-ever device
+ * is especially suspicious when combined with other
+ * anomalies (high amount, off-hours, new location).
  *
- * How device history is tracked:
- * Redis SET data structure stores known device IDs
- * per account. SADD adds a device and returns 1 if
- * new (first time seen) or 0 if already known.
+ * Redis SET semantics:
+ * SADD returns 1 if the element was new (added).
+ * SADD returns 0 if the element already existed.
+ * This is atomic — safe under concurrency.
  *
- * Redis key format: devices:{accountId}
- * Redis data type:  SET of device IDs
- *
- * No expiry is set on device sets — known devices
- * accumulate over time, which is correct behaviour.
+ * No TTL on device sets:
+ * Known devices accumulate permanently.
  * In production these would sync with the core
- * banking system's device registry.
+ * banking system's enrolled device registry.
  */
 @Slf4j
 @Component
@@ -39,42 +37,32 @@ public class NewDeviceRule {
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Value("${sentinel.rules.device.score-contribution}")
+    @Value("${sentinel.rules.device.score-contribution:20}")
     private int scoreContribution;
-
-    private static final String DEVICE_KEY_PREFIX = "devices:";
 
     public RuleResult evaluate(TransactionEvent transaction) {
 
-        // No device ID provided — skip this check
         if (transaction.getDeviceId() == null
                 || transaction.getDeviceId().isBlank()) {
             return RuleResult.notFired("NEW_DEVICE");
         }
 
-        String key = DEVICE_KEY_PREFIX + transaction.getAccountId();
+        String key = RedisKeys.DEVICE_PREFIX
+                + transaction.getAccountId();
 
-        /*
-         * SADD returns the number of elements added.
-         * 1 = this device is NEW (never seen before)
-         * 0 = this device is KNOWN (seen before)
-         *
-         * This operation is atomic — safe under concurrency.
-         */
-        Long addedCount = redisTemplate.opsForSet()
+        Long added = redisTemplate.opsForSet()
                 .add(key, transaction.getDeviceId());
 
-        boolean isNewDevice = addedCount != null && addedCount > 0;
+        boolean isNewDevice = added != null && added > 0;
 
         if (isNewDevice) {
             String explanation = String.format(
-                    "Transaction initiated from device %s which has " +
-                            "not been seen before for account %s.",
+                    "Transaction from device %s — " +
+                            "first time seen for account %s.",
                     transaction.getDeviceId(),
-                    transaction.getAccountId()
-            );
+                    transaction.getAccountId());
 
-            log.debug("New device rule fired — account: {}, device: {}",
+            log.debug("New device — account: {}, device: {}",
                     transaction.getAccountId(),
                     transaction.getDeviceId());
 

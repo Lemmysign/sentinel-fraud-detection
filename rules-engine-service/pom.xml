@@ -17,7 +17,7 @@
     <name>rules-engine-service</name>
     <description>
         Evaluates incoming transactions against configurable
-        fraud rules — velocity checks, amount thresholds,
+        fraud engine — velocity checks, amount thresholds,
         geographic anomalies, and device fingerprinting.
     </description>
 
@@ -26,7 +26,7 @@
         <!--
             Kafka
             Consumes from transactions.raw topic.
-            Evaluates each transaction against fraud rules
+            Evaluates each transaction against fraud engine
             then publishes result to fraud.scored topic.
         -->
         <dependency>
@@ -43,10 +43,26 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+
+
+        <!--
+    MaxMind GeoIP2
+    Provides the DatabaseReader that loads GeoLite2-City.mmdb
+    and resolves IP addresses to geographic coordinates.
+-->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>4.2.0</version>
+        </dependency>
+
+
+
+
         <!--
             Validation
             Validates transaction objects consumed
-            from Kafka before applying rules.
+            from Kafka before applying engine.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
