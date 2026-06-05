@@ -228,6 +228,7 @@ public class ScoringServiceImpl implements ScoringService {
                 .transactionId(event.getTransactionId())
                 .caseId(generateCaseId(event.getTransactionId()))
                 .accountId(event.getAccountId())
+                .merchantId(event.getMerchantId())
                 .riskLevel(finalRiskLevel)
                 .fraudScore(finalScore)
                 .triggeredRules(event.getTriggeredRules())

@@ -29,6 +29,7 @@ public class FraudAlertEvent {
     private String transactionId;
     private String caseId;
     private String accountId;
+    private String merchantId;
     private RiskLevel riskLevel;
     private int fraudScore;
 
