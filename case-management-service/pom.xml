@@ -76,6 +76,21 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+
+        <!--
+    Spring Data Redis
+    Used to increment recipient risk counters in Redis
+    when an analyst confirms fraud on a case.
+    Creates the feedback loop between case management
+    and the rules engine.
+-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+
+
         <!--
             Validation
             Validates request payloads on REST endpoints.
@@ -118,6 +133,10 @@
             <groupId>com.sentinel</groupId>
             <artifactId>sentinel-commons</artifactId>
             <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
         </dependency>
 
 
