@@ -1,0 +1,51 @@
+# ================================================================
+# ConfigMap — shared non-secret configuration for all services
+#
+# Why 192.168.65.254?
+# This is host.minikube.internal — the address pods use to
+# reach the Windows host machine where Docker Compose runs.
+# Inside a pod, "localhost" means the pod itself.
+# 192.168.65.254 means "the machine running Minikube".
+#
+# In production these values would point to:
+#   Kafka       → Amazon MSK endpoint
+#   PostgreSQL  → Amazon RDS endpoint
+#   Redis       → Amazon ElastiCache endpoint
+# Only this ConfigMap changes — service code stays identical.
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-config
+  namespace: sentinel
+data:
+  # ── Kafka ──────────────────────────────────────────────────────
+  KAFKA_BOOTSTRAP_SERVERS: "192.168.65.254:9092"
+  KAFKA_CONSUMER_AUTO_OFFSET_RESET: "earliest"
+
+  # ── Redis ──────────────────────────────────────────────────────
+  REDIS_HOST: "192.168.65.254"
+  REDIS_PORT: "6379"
+
+  # ── PostgreSQL ─────────────────────────────────────────────────
+  # Port 5433 because local PostgreSQL already uses 5432
+  DB_URL: "jdbc:postgresql://192.168.65.254:5433/sentinel_cases"
+  DB_USERNAME: "sentinel"
+
+  # ── Kafka topics ───────────────────────────────────────────────
+  TOPIC_TRANSACTIONS_RAW: "transactions.raw"
+  TOPIC_FRAUD_SCORED: "fraud.scored"
+  TOPIC_FRAUD_ALERTS: "fraud.alerts"
+  TOPIC_MODEL_FEEDBACK: "model.feedback"
+
+  # ── Service ports ──────────────────────────────────────────────
+  API_GATEWAY_PORT: "8080"
+  INGESTION_PORT: "8081"
+  RULES_ENGINE_PORT: "8082"
+  SCORING_PORT: "8083"
+  CASE_MANAGEMENT_PORT: "8084"
+  FEEDBACK_PORT: "8085"
+
+  # ── Spring profiles ────────────────────────────────────────────
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
