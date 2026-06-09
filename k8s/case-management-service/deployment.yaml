@@ -1,0 +1,127 @@
+# ================================================================
+# Case Management Service — Deployment + Service
+#
+# REST API + Kafka consumer + PostgreSQL + Redis.
+# Most complex service — needs DB connection on startup.
+# initialDelaySeconds: 120 — Hibernate schema validation takes time.
+# Memory 1Gi — JPA + connection pool + Kafka consumer.
+# ================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: case-management-service
+  namespace: sentinel
+  labels:
+    app: case-management-service
+    component: case-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: case-management-service
+  template:
+    metadata:
+      labels:
+        app: case-management-service
+        component: case-management
+    spec:
+      containers:
+        - name: case-management-service
+          image: lemmy007/sentinel-case-management-service:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+              name: http
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "case-management-service"
+            - name: SERVER_PORT
+              value: "8084"
+            # PostgreSQL — URL from ConfigMap, password from Secret
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: DB_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: DB_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sentinel-secrets
+                  key: DB_PASSWORD
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: SPRING_JPA_HIBERNATE_DDL_AUTO
+            # Kafka
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "case-management-group"
+            - name: SENTINEL_KAFKA_TOPICS_FRAUD_ALERTS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_FRAUD_ALERTS
+            - name: SENTINEL_KAFKA_TOPICS_MODEL_FEEDBACK
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_MODEL_FEEDBACK
+            # Redis
+            - name: SPRING_DATA_REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: REDIS_HOST
+            - name: SPRING_DATA_REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: REDIS_PORT
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "700m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: case-management-service
+  namespace: sentinel
+  labels:
+    app: case-management-service
+spec:
+  type: ClusterIP
+  selector:
+    app: case-management-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
