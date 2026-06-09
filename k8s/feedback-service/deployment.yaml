@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feedback-service
+  namespace: sentinel
+  labels:
+    app: feedback-service
+    component: feedback
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feedback-service
+  template:
+    metadata:
+      labels:
+        app: feedback-service
+        component: feedback
+    spec:
+      containers:
+        - name: feedback-service
+          image: lemmy007/sentinel-feedback-service:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8085
+              name: actuator
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "feedback-service"
+            - name: SERVER_PORT
+              value: "8085"
+            - name: SPRING_MAIN_WEB_APPLICATION_TYPE
+              value: "none"
+            - name: SPRING_MAIN_KEEP_ALIVE
+              value: "true"
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "feedback-group"
+            - name: SENTINEL_KAFKA_TOPICS_MODEL_FEEDBACK
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_MODEL_FEEDBACK
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feedback-service
+  namespace: sentinel
+  labels:
+    app: feedback-service
+spec:
+  type: ClusterIP
+  selector:
+    app: feedback-service
+  ports:
+    - name: actuator
+      port: 8085
+      targetPort: 8085
+      protocol: TCP
