@@ -1,13 +1,17 @@
-# ================================================================
-# API Gateway — Deployment + Service
-#
-# The single entry point for all external traffic.
-# Routes /api/v1/transactions → ingestion-service
-# Routes /api/v1/cases        → case-management-service
-#
-# Uses Spring Cloud Gateway (WebFlux/Netty — reactive).
-# Memory limit 512Mi — gateway does routing only, no heavy logic.
-# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: sentinel
+data:
+  application-kubernetes.properties: |
+    spring.cloud.gateway.routes[0].id=ingestion-service
+    spring.cloud.gateway.routes[0].uri=http://ingestion-service:8081
+    spring.cloud.gateway.routes[0].predicates[0]=Path=/api/v1/transactions/**
+    spring.cloud.gateway.routes[1].id=case-management-service
+    spring.cloud.gateway.routes[1].uri=http://case-management-service:8084
+    spring.cloud.gateway.routes[1].predicates[0]=Path=/api/v1/cases/**
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +19,6 @@ metadata:
   namespace: sentinel
   labels:
     app: api-gateway
-    component: gateway
 spec:
   replicas: 1
   selector:
@@ -25,7 +28,6 @@ spec:
     metadata:
       labels:
         app: api-gateway
-        component: gateway
     spec:
       containers:
         - name: api-gateway
@@ -33,26 +35,16 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
-              name: http
           env:
-            # Spring Cloud Gateway routing — points at K8s service DNS names
-            # Inside the cluster, services are reachable by their Service name
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_0_ID
-              value: "ingestion-service"
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_0_URI
-              value: "http://ingestion-service:8081"
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0
-              value: "Path=/api/v1/transactions/**"
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_1_ID
-              value: "case-management-service"
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_1_URI
-              value: "http://case-management-service:8084"
-            - name: SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0
-              value: "Path=/api/v1/cases/**"
             - name: SPRING_APPLICATION_NAME
               value: "api-gateway"
             - name: SERVER_PORT
               value: "8080"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "kubernetes"
+          volumeMounts:
+            - name: gateway-config
+              mountPath: /app/config
           resources:
             requests:
               memory: "256Mi"
@@ -60,7 +52,6 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-          # Liveness: if this fails 3 times, Kubernetes restarts the pod
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
@@ -68,7 +59,6 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 15
             failureThreshold: 3
-          # Readiness: pod only receives traffic when this passes
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
@@ -76,25 +66,20 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
+      volumes:
+        - name: gateway-config
+          configMap:
+            name: api-gateway-config
 ---
-# ================================================================
-# Service — gives the Deployment a stable cluster-internal address
-# ClusterIP = only reachable inside the cluster (other pods)
-# The Ingress controller routes external traffic to this Service
-# ================================================================
 apiVersion: v1
 kind: Service
 metadata:
   name: api-gateway
   namespace: sentinel
-  labels:
-    app: api-gateway
 spec:
   type: ClusterIP
   selector:
     app: api-gateway
   ports:
-    - name: http
-      port: 8080
+    - port: 8080
       targetPort: 8080
-      protocol: TCP

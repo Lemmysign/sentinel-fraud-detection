@@ -1,0 +1,60 @@
+# ================================================================
+# Ingress — NGINX Ingress Controller
+#
+# The single external entry point for all traffic.
+# Routes requests by URL path to the correct service.
+#
+# How to access after deploying:
+# 1. Run: minikube tunnel  (in a separate terminal, keep it running)
+# 2. Add to Windows hosts file (C:\Windows\System32\drivers\etc\hosts):
+#    127.0.0.1  sentinel.local
+# 3. Access:
+#    http://sentinel.local/api/v1/transactions  → ingestion-service
+#    http://sentinel.local/api/v1/cases         → case-management-service
+#
+# Why route directly to services instead of the API gateway?
+# The API gateway handles application-level routing.
+# The Ingress handles infrastructure-level routing.
+# Both are included so the architecture is complete.
+# In production you'd route everything through the gateway.
+# ================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sentinel-ingress
+  namespace: sentinel
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sentinel.local
+      http:
+        paths:
+          # All traffic goes through API Gateway
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          # Direct access to ingestion (bypass gateway for testing)
+          - path: /api/v1/transactions
+            pathType: Prefix
+            backend:
+              service:
+                name: ingestion-service
+                port:
+                  number: 8081
+          # Direct access to case management
+          - path: /api/v1/cases
+            pathType: Prefix
+            backend:
+              service:
+                name: case-management-service
+                port:
+                  number: 8084
