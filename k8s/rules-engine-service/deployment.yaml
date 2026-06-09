@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rules-engine-service
+  namespace: sentinel
+  labels:
+    app: rules-engine-service
+    component: rules-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rules-engine-service
+  template:
+    metadata:
+      labels:
+        app: rules-engine-service
+        component: rules-engine
+    spec:
+      containers:
+        - name: rules-engine-service
+          image: lemmy007/sentinel-rules-engine-service:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+              name: actuator
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "rules-engine-service"
+            - name: SERVER_PORT
+              value: "8082"
+            - name: SPRING_MAIN_WEB_APPLICATION_TYPE
+              value: "none"
+            - name: SPRING_MAIN_KEEP_ALIVE
+              value: "true"
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "rules-engine-group"
+            - name: SENTINEL_KAFKA_TOPICS_TRANSACTIONS_RAW
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_TRANSACTIONS_RAW
+            - name: SENTINEL_KAFKA_TOPICS_FRAUD_SCORED
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_FRAUD_SCORED
+            - name: SPRING_DATA_REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: REDIS_HOST
+            - name: SPRING_DATA_REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: REDIS_PORT
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "200m"
+            limits:
+              memory: "768Mi"
+              cpu: "700m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rules-engine-service
+  namespace: sentinel
+  labels:
+    app: rules-engine-service
+spec:
+  type: ClusterIP
+  selector:
+    app: rules-engine-service
+  ports:
+    - name: actuator
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
