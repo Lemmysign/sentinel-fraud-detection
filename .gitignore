@@ -4,6 +4,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Kubernetes secrets — never commit real credentials
+k8s/secret.yaml
+
+# GeoIP database — 62MB, too large for GitHub
+rules-engine-service/src/main/resources/GeoLite2-City.mmdb
+
 ### STS ###
 .apt_generated
 .classpath
