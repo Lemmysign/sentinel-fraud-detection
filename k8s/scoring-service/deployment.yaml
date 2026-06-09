@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scoring-service
+  namespace: sentinel
+  labels:
+    app: scoring-service
+    component: ai-scoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scoring-service
+  template:
+    metadata:
+      labels:
+        app: scoring-service
+        component: ai-scoring
+    spec:
+      containers:
+        - name: scoring-service
+          image: lemmy007/sentinel-scoring-service:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+              name: actuator
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "scoring-service"
+            - name: SERVER_PORT
+              value: "8083"
+            - name: SPRING_MAIN_WEB_APPLICATION_TYPE
+              value: "none"
+            - name: SPRING_MAIN_KEEP_ALIVE
+              value: "true"
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "scoring-group"
+            - name: SENTINEL_KAFKA_TOPICS_FRAUD_SCORED
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_FRAUD_SCORED
+            - name: SENTINEL_KAFKA_TOPICS_FRAUD_ALERTS
+              valueFrom:
+                configMapKeyRef:
+                  name: sentinel-config
+                  key: TOPIC_FRAUD_ALERTS
+            - name: SPRING_AI_OPENAI_BASE_URL
+              value: "https://api.groq.com/openai"
+            - name: SPRING_AI_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sentinel-secrets
+                  key: GROQ_API_KEY
+            - name: SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL
+              value: "llama-3.3-70b-versatile"
+            - name: SPRING_AI_OPENAI_CHAT_OPTIONS_TEMPERATURE
+              value: "0.1"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scoring-service
+  namespace: sentinel
+  labels:
+    app: scoring-service
+spec:
+  type: ClusterIP
+  selector:
+    app: scoring-service
+  ports:
+    - name: actuator
+      port: 8083
+      targetPort: 8083
+      protocol: TCP
