@@ -124,9 +124,7 @@ public class FraudCaseController {
                         caseId, request));
     }
 
-    /**
-     * Get dashboard statistics.
-     */
+
     @GetMapping("/stats")
     @Operation(summary = "Get case dashboard statistics")
     public ResponseEntity<CaseStatsResponse> getStats() {
