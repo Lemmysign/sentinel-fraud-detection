@@ -1,0 +1,29 @@
+# ================================================================
+# Grafana Datasource Provisioning
+#
+# Grafana supports "provisioning" — config files that auto-set-up
+# datasources and dashboards on startup, instead of manual UI clicks.
+#
+# This file tells Grafana: "Prometheus lives at this address,
+# add it as a datasource automatically when you start."
+#
+# Why http://prometheus:9090?
+# Same Kubernetes DNS mechanism as before — "prometheus" is the
+# Service name we created in Step 3, resolvable from any pod
+# in the sentinel namespace.
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: sentinel
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
