@@ -107,6 +107,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+       Micrometer Prometheus Registry
+       Adds the /actuator/prometheus endpoint to every service.
+       Spring Boot Actuator already collects metrics (request
+       counts, JVM memory, Kafka consumer lag, etc.) via Micrometer.
+       This dependency formats those metrics in the plain-text
+       format Prometheus's scraper expects — no custom code needed,
+       fully auto-configured.
+   -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
     </dependencies>
 
     <!--

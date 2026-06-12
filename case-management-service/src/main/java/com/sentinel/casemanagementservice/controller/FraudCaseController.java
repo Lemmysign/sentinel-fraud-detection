@@ -47,10 +47,6 @@ public class FraudCaseController {
 
     private final FraudCaseService fraudCaseService;
 
-    /**
-     * Get all fraud cases with pagination.
-     * Default: page 0, size 20.
-     */
     @GetMapping
     @Operation(summary = "Get all fraud cases",
             description = "Returns paginated list of " +
