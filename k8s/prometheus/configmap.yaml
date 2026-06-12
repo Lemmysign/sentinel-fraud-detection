@@ -1,0 +1,58 @@
+# ================================================================
+# Prometheus Configuration
+#
+# scrape_configs tells Prometheus WHERE to pull metrics from
+# and HOW OFTEN. Each "job" here corresponds to one Sentinel
+# service. Prometheus calls GET <target>/actuator/prometheus
+# every 15 seconds and stores the resulting time-series data.
+#
+# Why static_configs instead of Kubernetes service discovery?
+# kubernetes_sd_configs is the "real" production approach —
+# Prometheus auto-discovers pods via the K8s API. For 6 fixed
+# services in one namespace, a static list is simpler to read
+# and debug, and is explicit about exactly what's monitored.
+# The interview answer: "In a larger cluster with services
+# scaling dynamically, this would use kubernetes_sd_configs
+# with annotation-based discovery instead."
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: sentinel
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: 'api-gateway'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['api-gateway:8080']
+
+      - job_name: 'ingestion-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['ingestion-service:8081']
+
+      - job_name: 'rules-engine-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['rules-engine-service:8082']
+
+      - job_name: 'scoring-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['scoring-service:8083']
+
+      - job_name: 'case-management-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['case-management-service:8084']
+
+      - job_name: 'feedback-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['feedback-service:8085']
