@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: lemmy007/sentinel-api-gateway:1.0.0
+          image: lemmy007/sentinel-api-gateway:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
