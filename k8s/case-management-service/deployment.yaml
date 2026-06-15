@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: case-management-service
-          image: lemmy007/sentinel-case-management-service:1.0.0
+          image: lemmy007/sentinel-case-management-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8084
