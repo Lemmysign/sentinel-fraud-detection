@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: feedback-service
-          image: lemmy007/sentinel-feedback-service:1.0.0
+          image: lemmy007/sentinel-feedback-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
