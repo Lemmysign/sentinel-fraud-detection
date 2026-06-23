@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: ingestion-service
-          image: lemmy007/sentinel-ingestion-service:1.0.0
+          image: lemmy007/sentinel-ingestion-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
